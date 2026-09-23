@@ -21,6 +21,25 @@ Output:
 
 The Docker build also runs the unit tests. For local development, use `cargo build` / `cargo test`.
 
+## Test environment
+
+```powershell
+docker compose -f docker/docker-compose.test.yml up -d      # MySQL 8.4 on :33084, MariaDB 11 on :33011 (root / rutop)
+.\load.ps1 -Target both -Duration 600 -Workers 4             # generate load (Ctrl-C to stop)
+.\dist\rutop-windows-x86_64.exe -h 127.0.0.1 -P 33084 -u root -p rutop -s 2
+docker compose -f docker/docker-compose.test.yml down
+```
+
+The load generator (`docker/load.sh`, running in a container) creates the databases `shop` and `analytics` and the users
+`rutop_app` and `rutop_report`. It then produces:
+
+- an OLTP mix of SELECT, INSERT, UPDATE, DELETE and REPLACE statements
+- long-running report queries, including slow queries
+- row lock contention
+- idle connections
+
+Connections killed with `k`/`K` reconnect automatically.
+
 ## Usage
 
 ```

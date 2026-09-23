@@ -18,3 +18,13 @@ services:
     command: ["--query-cache-type=1", "--query-cache-size=16M"]
     ports:
       - "33011:3306"
+  # Load generator (only started explicitly, see load.ps1):
+  #   docker compose -f docker/docker-compose.test.yml run --rm load mysql,mariadb 300 4
+  load:
+    image: mysql:8.4
+    profiles: ["load"]
+    init: true
+    volumes:
+      - ./load.sh:/load.sh:ro
+    entrypoint: ["sh", "/load.sh"]
+    command: ["mysql", "300", "4"]
