@@ -1,0 +1,20 @@
+# Test servers for rutop:
+#   docker compose -f docker/docker-compose.test.yml up -d
+#   rutop -h 127.0.0.1 -P 33084 -u root -p rutop      (MySQL 8.4)
+#   rutop -h 127.0.0.1 -P 33011 -u root -p rutop      (MariaDB 11)
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: rutop
+      MYSQL_DATABASE: test
+    ports:
+      - "33084:3306"
+  mariadb:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: rutop
+      MARIADB_DATABASE: test
+    command: ["--query-cache-type=1", "--query-cache-size=16M"]
+    ports:
+      - "33011:3306"

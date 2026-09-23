@@ -1,0 +1,29 @@
+[package]
+name = "rutop"
+version = "0.1.0"
+edition = "2021"
+description = "Rust rewrite of mytop - display MySQL server performance info like `top'"
+license = "GPL-2.0-only"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+dirs = "6"
+dns-lookup = "2"
+# Pure-Rust compression and rustls (ring) => no OpenSSL/zlib needed for cross builds.
+mysql = { version = "28", default-features = false, features = ["minimal-rust", "rustls-tls-ring"] }
+ratatui = "0.30"
+regex = "1"
+rpassword = "7"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "unwind"
