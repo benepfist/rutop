@@ -42,6 +42,8 @@ jobs:
           target: export
           outputs: type=local,dest=dist
           push: false
+          # otherwise buildx writes provenance.json into dist/
+          provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
