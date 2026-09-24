@@ -1,6 +1,6 @@
 [package]
 name = "rutop"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Rust rewrite of mytop - display MySQL server performance info like `top'"
 license = "GPL-2.0-only"
