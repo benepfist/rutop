@@ -38,6 +38,33 @@ impl fmt::Display for Mode {
     }
 }
 
+/// Transport to the server, like the mysql client's `--protocol`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum Protocol {
+    Tcp,
+    Socket,
+}
+
+impl Protocol {
+    fn parse(s: &str) -> Option<Protocol> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "tcp" => Some(Protocol::Tcp),
+            // "pipe" is the Windows spelling of a local connection
+            "socket" | "pipe" => Some(Protocol::Socket),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for Protocol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Protocol::Tcp => "tcp",
+            Protocol::Socket => "socket",
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub batchmode: bool,
@@ -55,6 +82,10 @@ pub struct Config {
     pub prompt: bool,
     pub pass: String,
     pub port: u16,
+    /// Port given on the command line: implies TCP (like the MariaDB client).
+    pub port_explicit: bool,
+    /// None = automatic (local socket for localhost if one exists)
+    pub protocol: Option<Protocol>,
     pub resolve: bool,
     pub socket: String,
     /// false = default order (least idle first), true = reversed
@@ -82,6 +113,8 @@ impl Default for Config {
             prompt: false,
             pass: String::new(),
             port: 3306,
+            port_explicit: false,
+            protocol: None,
             resolve: false,
             socket: String::new(),
             sort: false,
@@ -102,6 +135,7 @@ impl Config {
             format!("{:>12} = {}", "host", self.host),
             format!("{:>12} = {}", "port", self.port),
             format!("{:>12} = {}", "socket", self.socket),
+            format!("{:>12} = {}", "protocol", self.protocol.map_or("auto".to_string(), |p| p.to_string())),
             format!("{:>12} = {}", "db", self.db),
             format!("{:>12} = {}", "delay", self.delay),
             format!("{:>12} = {}", "mode", self.mode),
@@ -149,13 +183,17 @@ struct Cli {
     #[arg(short = 'h', long = "host")]
     host: Option<String>,
 
-    /// TCP port of the server [default: 3306]
+    /// TCP port of the server; implies --protocol tcp [default: 3306]
     #[arg(short = 'P', long = "port")]
     port: Option<u16>,
 
     /// Unix socket (named pipe on Windows); takes precedence over host/port
     #[arg(short = 'S', long = "socket")]
     socket: Option<String>,
+
+    /// Connection protocol [default: socket for localhost if one exists, else tcp]
+    #[arg(long = "protocol", value_enum)]
+    protocol: Option<Protocol>,
 
     /// Seconds between display refreshes [default: 5]
     #[arg(short = 's', long = "delay")]
@@ -268,9 +306,9 @@ pub fn load() -> Result<Config> {
         }
     }
 
+    split_host_port(&mut cfg);
     let cli = Cli::parse();
     apply_cli(&mut cfg, cli);
-    split_host_port(&mut cfg);
     if cfg.delay < 1 {
         cfg.delay = 1;
     }
@@ -330,6 +368,11 @@ pub fn apply_mycnf(cfg: &mut Config, text: &str) {
                 }
             }
             "socket" => cfg.socket = value,
+            "protocol" => {
+                if let Some(p) = Protocol::parse(&value) {
+                    cfg.protocol = Some(p)
+                }
+            }
             "database" | "db" => cfg.db = value,
             _ => {}
         }
@@ -409,14 +452,21 @@ fn apply_cli(cfg: &mut Config, cli: Cli) {
     if let Some(v) = cli.db {
         cfg.db = v;
     }
-    if let Some(v) = cli.host {
-        cfg.host = v;
-    }
     if let Some(v) = cli.port {
         cfg.port = v;
+        cfg.port_explicit = true;
+    }
+    if let Some(v) = cli.host {
+        cfg.host = v;
+        if split_host_port(cfg) {
+            cfg.port_explicit = true;
+        }
     }
     if let Some(v) = cli.socket {
         cfg.socket = v;
+    }
+    if let Some(v) = cli.protocol {
+        cfg.protocol = Some(v);
     }
     if let Some(v) = cli.delay {
         cfg.delay = v;
@@ -457,15 +507,18 @@ fn apply_cli(cfg: &mut Config, cli: Cli) {
 }
 
 /// The user may have put the port with the host (`host:port`).
-fn split_host_port(cfg: &mut Config) {
+/// Returns true if a port was split off.
+fn split_host_port(cfg: &mut Config) -> bool {
     if let Some((host, port)) = cfg.host.rsplit_once(':') {
         if !host.contains(':') && !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) {
             if let Ok(p) = port.parse() {
                 cfg.port = p;
                 cfg.host = host.to_string();
+                return true;
             }
         }
     }
+    false
 }
 
 #[cfg(test)]
@@ -517,5 +570,34 @@ mod tests {
         split_host_port(&mut cfg);
         assert_eq!(cfg.host, "::1");
         assert_eq!(cfg.port, 3306);
+    }
+
+    fn with_args(cfg: &mut Config, args: &[&str]) {
+        let cli = Cli::try_parse_from(std::iter::once("rutop").chain(args.iter().copied())).unwrap();
+        apply_cli(cfg, cli);
+    }
+
+    #[test]
+    fn explicit_port_only_from_command_line() {
+        let mut cfg = Config::default();
+        apply_mycnf(&mut cfg, "[client]\nport=3307\nhost=db1:3308\nprotocol=TCP\n");
+        split_host_port(&mut cfg);
+        assert_eq!((cfg.host.as_str(), cfg.port), ("db1", 3308));
+        assert_eq!(cfg.protocol, Some(Protocol::Tcp));
+        assert!(!cfg.port_explicit);
+
+        let mut cfg = Config::default();
+        with_args(&mut cfg, &["-P", "3307"]);
+        assert!(cfg.port_explicit);
+
+        let mut cfg = Config::default();
+        with_args(&mut cfg, &["-h", "localhost:3309"]);
+        assert_eq!((cfg.host.as_str(), cfg.port), ("localhost", 3309));
+        assert!(cfg.port_explicit);
+
+        let mut cfg = Config::default();
+        with_args(&mut cfg, &["-h", "db2", "--protocol", "socket"]);
+        assert!(!cfg.port_explicit);
+        assert_eq!(cfg.protocol, Some(Protocol::Socket));
     }
 }

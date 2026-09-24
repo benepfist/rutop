@@ -69,9 +69,10 @@ rutop [options]
 | `-u`, `--user` | username | `root` |
 | `-p`, `--pass`, `--password` | password | none |
 | `--prompt` / `--noprompt` | prompt for the password (only if none is configured) | noprompt |
-| `-h`, `--host host[:port]` | server host | `localhost` |
-| `-P`, `--port` | server port | `3306` |
+| `-h`, `--host host[:port]` | server host; a port given here implies TCP | `localhost` |
+| `-P`, `--port` | server port; implies TCP when given on the command line | `3306` |
 | `-S`, `--socket` | Unix socket (Windows: named pipe); overrides host/port if it exists | none |
+| `--protocol tcp\|socket` | force TCP or the local socket | see below |
 | `-d`, `--db`, `--database` | database | `test` |
 | `-s`, `--delay` | seconds between refreshes | `5` |
 | `-b`, `--batch`, `--batchmode` | print once to stdout, no screen handling (`-m qps` prints forever) | off |
@@ -87,12 +88,23 @@ rutop [options]
 
 Negated options can also be written as `--no-color`, `--no-header`, and so on.
 
+### Socket or TCP
+
+rutop chooses the connection like the `mysql`/`mariadb` client:
+
+1. `--protocol tcp` always uses TCP; `--protocol socket` uses `-S` or the default socket.
+2. An existing socket given with `-S` (or `socket=`) is used.
+3. For `localhost` (or an empty host) on Unix, the default server socket is used if one exists and no port was given
+   on the command line: `$MYSQL_UNIX_PORT`, `/var/lib/mysql/mysql.sock`, `/run/mysqld/mysqld.sock`,
+   `/var/run/mysqld/mysqld.sock`, `/tmp/mysql.sock`. A port from a config file does not force TCP.
+4. Otherwise TCP is used; `localhost` then connects to `127.0.0.1`.
+
 ## Configuration files
 
 Settings are applied in this order, each overriding the previous:
 
 1. Defaults
-2. `my.cnf`, groups `[client]` and `[mytop]` (keys: `user`, `password`, `host`, `port`, `socket`, `database`).
+2. `my.cnf`, groups `[client]` and `[mytop]` (keys: `user`, `password`, `host`, `port`, `socket`, `protocol`, `database`).
    On Unix these are `/etc/my.cnf`, `/etc/mysql/my.cnf` and `~/.my.cnf`; on Windows `%PROGRAMDATA%\MySQL\my.ini`,
    `%WINDIR%\my.ini`, `C:\my.ini` and `%USERPROFILE%\.my.cnf`.
 3. `~/.mytop` (Windows: `%USERPROFILE%\.mytop`, or `%HOME%\.mytop` if `HOME` is set), in the same format as mytop:
