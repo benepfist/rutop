@@ -21,6 +21,24 @@ Output:
 
 The Docker build also runs the unit tests. For local development, use `cargo build` / `cargo test`.
 
+## Release
+
+The GitHub workflow [`.github/workflows/build.yml`](.github/workflows/build.yml) runs the same Docker build on every
+push to `main` and on every pull request. The binaries are available as the workflow artifact `rutop-binaries`.
+
+To publish a release:
+
+1. Bump `version` in `Cargo.toml`, then commit and push.
+2. Tag and push:
+   ```sh
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+The workflow checks that the tag matches the `Cargo.toml` version. It then creates a GitHub Release with
+`rutop-linux-x86_64`, `rutop-windows-x86_64.exe` and `SHA256SUMS`. A tag with a suffix, such as `v0.2.0-rc1`, is
+published as a pre-release. After downloading the Linux binary, run `chmod +x rutop-linux-x86_64`.
+
 ## Test environment
 
 ```powershell
