@@ -37,9 +37,10 @@ fn run() -> anyhow::Result<()> {
         cfg.pass = rpassword::prompt_password("Password: ")?;
     }
 
-    let db = match Db::connect(&cfg) {
+    let transport = db::transport(&cfg).map_err(|e| anyhow::anyhow!("Cannot connect to MySQL server: {e}"))?;
+    let db = match Db::connect(&cfg, &transport) {
         Ok(db) => db,
-        Err(e) => anyhow::bail!("{}", connect_error(&cfg, &e)),
+        Err(e) => anyhow::bail!("{}", connect_error(&cfg, &transport, &e)),
     };
     let mon = Monitor::new(cfg, db)?;
 
@@ -50,10 +51,10 @@ fn run() -> anyhow::Result<()> {
     }
 }
 
-fn connect_error(cfg: &Config, err: &mysql::Error) -> String {
+fn connect_error(cfg: &Config, transport: &db::Transport, err: &mysql::Error) -> String {
     let pass = if cfg.pass.is_empty() { "" } else { "********" };
     format!(
-        r#"Cannot connect to MySQL server. Please check the:
+        r#"Cannot connect to MySQL server via {}. Please check the:
 
   * database you specified "{}" (default is "test")
   * username you specified "{}" (default is "root")
@@ -62,6 +63,9 @@ fn connect_error(cfg: &Config, err: &mysql::Error) -> String {
   * port you specified "{}" (default is 3306)
   * socket you specified "{}" (default is "")
 
+For localhost the local server socket is used if one exists; a port on the
+command line or --protocol tcp connects via TCP instead.
+
 The options may be specified on the command-line or in a ~/.mytop
 config file. See `rutop --help` and the README for details.
 
@@ -69,7 +73,7 @@ Here's the exact error from the MySQL driver. It might help you debug:
 
 {}
 "#,
-        cfg.db, cfg.user, pass, cfg.host, cfg.port, cfg.socket, err
+        transport, cfg.db, cfg.user, pass, cfg.host, cfg.port, cfg.socket, err
     )
 }
 
