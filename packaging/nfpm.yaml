@@ -1,0 +1,33 @@
+# .deb / .rpm for the static musl binary (runs on any x86_64 distro, no libc dependency).
+# Built by packaging/build-packages.sh; ${VERSION} and ${RPM_SIGNING_KEY_FILE} come from the environment.
+name: rutop
+arch: amd64
+platform: linux
+version: ${VERSION}
+version_schema: semver
+release: 1
+section: database
+priority: optional
+maintainer: Benedict Pfisterer <pfisterer.bene@gmail.com>
+vendor: Benedict Pfisterer
+homepage: https://github.com/benepfist/rutop
+license: GPL-2.0-only
+description: |-
+  top-like monitor for MySQL / MariaDB
+  Rust rewrite of mytop: shows threads, queries and server status in a terminal UI.
+
+contents:
+  - src: dist/rutop-linux-x86_64
+    dst: /usr/bin/rutop
+    file_info:
+      mode: 0755
+  - src: README.md
+    dst: /usr/share/doc/rutop/README.md
+    file_info:
+      mode: 0644
+
+rpm:
+  group: Applications/Databases
+  signature:
+    # empty => unsigned (PR builds); set on tag builds so dnf can use gpgcheck=1
+    key_file: ${RPM_SIGNING_KEY_FILE}

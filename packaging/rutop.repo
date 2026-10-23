@@ -1,0 +1,7 @@
+[rutop]
+name=rutop
+baseurl=https://benepfist.github.io/rutop/rpm
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://benepfist.github.io/rutop/rutop.asc

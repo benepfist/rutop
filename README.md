@@ -36,8 +36,47 @@ To publish a release:
    ```
 
 The workflow checks that the tag matches the `Cargo.toml` version. It then creates a GitHub Release with
-`rutop-linux-x86_64`, `rutop-windows-x86_64.exe` and `SHA256SUMS`. A tag with a suffix, such as `v0.2.0-rc1`, is
-published as a pre-release. After downloading the Linux binary, run `chmod +x rutop-linux-x86_64`.
+`rutop-linux-x86_64`, `rutop-windows-x86_64.exe`, the `.deb` and `.rpm` packages and `SHA256SUMS`. A tag with a
+suffix, such as `v0.2.0-rc1`, is published as a pre-release. After downloading the Linux binary, run
+`chmod +x rutop-linux-x86_64`.
+
+## Linux packages (dnf / apt)
+
+The `.deb` and `.rpm` packages contain the static musl binary (`/usr/bin/rutop`), so the same package works on Rocky
+Linux / RHEL 8+, Fedora, Debian and Ubuntu. For every release without a suffix, the workflow publishes a signed dnf and
+apt repository on GitHub Pages (`https://benepfist.github.io/rutop/`). It is rebuilt from the packages of all releases.
+
+Rocky Linux / RHEL:
+
+```sh
+sudo curl -fsSo /etc/yum.repos.d/rutop.repo https://benepfist.github.io/rutop/rutop.repo
+sudo dnf install rutop
+sudo dnf update rutop      # later
+```
+
+Ubuntu / Debian:
+
+```sh
+sudo install -d /etc/apt/keyrings
+sudo curl -fsSo /etc/apt/keyrings/rutop.asc https://benepfist.github.io/rutop/rutop.asc
+sudo curl -fsSo /etc/apt/sources.list.d/rutop.sources https://benepfist.github.io/rutop/rutop.sources
+sudo apt update && sudo apt install rutop
+```
+
+Build the packages locally after `./build.sh` with `packaging/build-packages.sh` (nfpm in Docker, output in `dist/`).
+
+One-time setup for the repository:
+
+1. Create a signing key without a passphrase. The GitHub secret protects it:
+   ```sh
+   gpg --batch --passphrase '' --quick-gen-key 'rutop packages <pfisterer.bene@gmail.com>' rsa4096 sign never
+   gpg --armor --export-secret-keys 'rutop packages' > rutop-signing-key.asc
+   ```
+2. Store the content of `rutop-signing-key.asc` as the repository secret `PACKAGE_SIGNING_KEY`, then delete the file.
+   Keep a backup of the key. If the key changes, all users must import the new public key.
+3. Settings → Pages → Source: **GitHub Actions**.
+4. Settings → Environments → `github-pages` → Deployment branches and tags: add the tag rule `v*`. Otherwise
+   GitHub refuses the deployment from a tag.
 
 ## Test environment
 
