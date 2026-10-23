@@ -10,8 +10,8 @@ readme = "README.md"
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
-dirs = "6"
-dns-lookup = "2"
+dirs = "7"
+dns-lookup = "4"
 # Pure-Rust compression and rustls (ring) => no OpenSSL/zlib needed for cross builds.
 mysql = { version = "28", default-features = false, features = ["minimal-rust", "rustls-tls-ring"] }
 ratatui = "0.30"
