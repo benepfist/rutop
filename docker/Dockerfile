@@ -11,7 +11,8 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends musl-tools gcc-mingw-w64-x86-64 \
  && rm -rf /var/lib/apt/lists/*
 
-RUN rustup target add x86_64-unknown-linux-musl x86_64-pc-windows-gnu
+RUN rustup target add x86_64-unknown-linux-musl x86_64-pc-windows-gnu \
+ && rustc --version && cargo --version
 
 # musl: musl-gcc only compiles C code (ring); linking uses Rust's self-contained
 # musl (using musl-gcc as linker mixes two libcs and crashes at runtime).
