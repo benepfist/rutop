@@ -1,0 +1,5 @@
+# Only resolve crate versions that have been published for at least 2 days
+# (supply-chain protection; stable since Cargo 1.100). Versions already in
+# Cargo.lock stay usable. Bypass once: CARGO_RESOLVER_INCOMPATIBLE_PUBLISH_AGE=allow
+[registry]
+global-min-publish-age = "2 days"
