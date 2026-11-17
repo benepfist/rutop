@@ -1,0 +1,73 @@
+# Weekly `cargo update`: if Cargo.lock changes, opens (or refreshes) a PR from
+# branch chore/cargo-update and starts the build workflow on it.
+# Respects registry.global-min-publish-age from .cargo/config.toml (Cargo >= 1.100).
+#
+# Needs repo setting: Actions > General > "Allow GitHub Actions to create and
+# approve pull requests". PRs created with GITHUB_TOKEN don't trigger
+# pull_request workflows, hence the explicit `gh workflow run build.yml`.
+name: update-deps
+
+on:
+  schedule:
+    - cron: '0 5 * * 1' # Mondays 05:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: update-deps
+  cancel-in-progress: false
+
+jobs:
+  cargo-update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      BRANCH: chore/cargo-update
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install current stable Rust
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          cargo --version
+
+      - name: cargo update
+        id: update
+        run: |
+          cargo update 2>&1 | tee "$RUNNER_TEMP/update.log"
+          if git diff --quiet -- Cargo.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or update PR
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git commit -q -m "Update Cargo dependencies" -- Cargo.lock
+          git push --force origin "$BRANCH"
+
+          {
+            echo "Automated \`cargo update\` ($(cargo --version))."
+            echo
+            echo '```'
+            grep -E '^\s*(Updating|Adding|Removing|Downgrading) [a-z0-9_-]+ v' "$RUNNER_TEMP/update.log" | sed 's/^ *//' || true
+            echo '```'
+          } > "$RUNNER_TEMP/body.md"
+
+          if [ "$(gh pr view "$BRANCH" --json state -q .state 2>/dev/null)" = "OPEN" ]; then
+            gh pr edit "$BRANCH" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --base main --head "$BRANCH" \
+              --title "Update Cargo dependencies" --body-file "$RUNNER_TEMP/body.md"
+          fi
+
+          gh workflow run build.yml --ref "$BRANCH"
